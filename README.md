@@ -1,10 +1,10 @@
 # pycommremover
-*Python3 Module to convert from duration to date and time.*
+*Python module to convert from duration to date and time.*
 
 ## Installation
-### Install with pip
+### Install with uv:
 ```
-pip3 install -U pycommremover
+uv add pycommremover
 ```
 
 ## Usage

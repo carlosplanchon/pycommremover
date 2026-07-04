@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/carlosplanchon/pycommremover/main/assets/banner.png" alt="pycommremover — Python library to remove comments and docstrings from source code" width="100%">
+</p>
+
 # pycommremover
 
 [![CI](https://github.com/carlosplanchon/pycommremover/actions/workflows/ci.yml/badge.svg)](https://github.com/carlosplanchon/pycommremover/actions/workflows/ci.yml)
@@ -5,8 +9,6 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/pycommremover.svg)](https://pypi.org/project/pycommremover/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/carlosplanchon/pycommremover)
-
-*Python library to remove comments and docstrings from Python source code.*
 
 It analyses the code with the standard-library `tokenize` and `ast` modules,
 so a `#` inside a string is never mistaken for a comment and real string

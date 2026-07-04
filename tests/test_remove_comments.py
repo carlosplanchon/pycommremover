@@ -169,6 +169,35 @@ def test_code_without_comments_is_unchanged():
     assert remove_docstrings(src) == src
 
 
+def test_trailing_whitespace_inside_multiline_string_is_kept():
+    # rstrip must not reach into a preserved string's content (an untouched
+    # line stays byte-for-byte identical).
+    src = 's = """a   \nb   """\n'
+    assert remove_comments(src) == src
+    assert remove_comments_and_docstrings(src) == src
+
+
+def test_remove_comments_keeps_docstring_trailing_whitespace():
+    src = 'def f():\n    """line   \n    more   """\n    return 1'
+    assert remove_comments(src) == src
+
+
+def test_touched_line_is_still_trimmed():
+    # The line a comment was removed from is still cleaned up, including any
+    # whitespace between the code and the comment.
+    assert remove_comments("x = 1   # c") == "x = 1"
+    assert remove_comments("x = 1  # c   ") == "x = 1"
+
+
+def test_mid_line_removal_keeps_following_multiline_string():
+    # A block comment removed mid-line must not let rstrip reach into a
+    # preserved multi-line string that continues on the same physical line.
+    src = 'a = 1\n"""note"""; x = """multi   \nend"""\n'
+    out = remove_comments(src)
+    assert "multi   " in out
+    assert '"""note"""' not in out
+
+
 def test_remove_comments_is_idempotent():
     src = 'x = 1  # c\n"""block"""\ny = "keep # me"\n'
     once = remove_comments(src)

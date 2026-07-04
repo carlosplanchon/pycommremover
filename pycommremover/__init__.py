@@ -122,8 +122,15 @@ def _apply(
     spans: list[Span],
     pass_positions: list[tuple[int, int]],
 ) -> str:
-    """Blank ``spans``, insert ``pass`` where needed, then trim each line."""
+    """Blank ``spans``, insert ``pass`` where needed, then trim dead line ends.
+
+    A line is ``rstrip``-ped only when a removal reached its end -- that is the
+    only whitespace we made dead. Anything we did not blank is returned
+    verbatim, so trailing whitespace *inside* a preserved (multi-line) string
+    is never altered, even when the removal shares the line via ``;``.
+    """
     lines = text.split("\n")
+    rstrip_rows: set[int] = set()
 
     for srow, scol, erow, ecol in spans:
         for row in range(srow, erow + 1):
@@ -131,13 +138,19 @@ def _apply(
             start = scol if row == srow else 0
             end = ecol if row == erow else len(line)
             lines[row - 1] = line[:start] + " " * (end - start) + line[end:]
+            if end == len(line):  # removal reached the end of the line
+                rstrip_rows.add(row)
 
     # After blanking, the string's characters are spaces; drop ``pass`` in.
     for row, col in pass_positions:
         line = lines[row - 1]
         lines[row - 1] = line[:col] + "pass" + line[col + 4:]
+        rstrip_rows.add(row)
 
-    return "\n".join(line.rstrip() for line in lines)
+    return "\n".join(
+        line.rstrip() if row in rstrip_rows else line
+        for row, line in enumerate(lines, start=1)
+    )
 
 
 def remove_comments(text: str) -> str:

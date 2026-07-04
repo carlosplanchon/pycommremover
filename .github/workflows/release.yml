@@ -1,6 +1,6 @@
 name: Release
 
-# Publishes to PyPI when a version tag (e.g. v0.4) is pushed, using PyPI
+# Publishes to PyPI when a version tag (e.g. v0.4.1) is pushed, using PyPI
 # Trusted Publishing (OIDC) -- no API token stored in the repo.
 on:
   push:
@@ -22,19 +22,9 @@ jobs:
       - name: Run tests
         run: uv run pytest
 
-  publish:
+  build:
     needs: test
     runs-on: ubuntu-latest
-
-    # Requires a manual approval if the `pypi` environment has reviewers set.
-    environment:
-      name: pypi
-      url: https://pypi.org/p/pycommremover
-
-    permissions:
-      id-token: write   # mint the OIDC token for Trusted Publishing
-      contents: read
-
     steps:
       - uses: actions/checkout@v4
 
@@ -57,5 +47,32 @@ jobs:
       - name: Build sdist and wheel
         run: uv build
 
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+
+    # Requires a manual approval if the `pypi` environment has reviewers set.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pycommremover
+
+    # Only this job can mint the OIDC token; test/build run without it. No
+    # checkout and no project code run here -- it just uploads the artifacts.
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
       - name: Publish to PyPI
-        run: uv publish --trusted-publishing always
+        uses: pypa/gh-action-pypi-publish@release/v1

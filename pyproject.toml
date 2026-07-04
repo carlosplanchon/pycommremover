@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pycommremover"
-version = "0.4"
+version = "0.4.1"
 authors = [
     {name = "Carlos A. Planchón", email = "carlosandresplanchonprestes@gmail.com"},
     {name = "Agustín Céspedes", email = "agustinces17@gmail.com"},

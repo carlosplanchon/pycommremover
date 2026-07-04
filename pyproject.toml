@@ -2,18 +2,14 @@
 requires = ["setuptools>=77.0.3", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[options]
-package_dir = "pycommremover"
-packages = ["pycommremover"]
-
 [project]
 name = "pycommremover"
-version = "0.3"
+version = "0.4"
 authors = [
     {name = "Carlos A. Planchón", email = "carlosandresplanchonprestes@gmail.com"},
     {name = "Agustín Céspedes", email = "agustinces17@gmail.com"},
 ]
-description = "Python library to remove block and line comments."
+description = "Python library to remove comments and docstrings from source code."
 classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Build Tools",
@@ -28,11 +24,14 @@ requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 
-keywords = ["comment", "remover"]
+keywords = ["comment", "docstring", "remover"]
 readme = "README.md"
 
 [project.urls]
 Repository = "https://github.com/carlosplanchon/pycommremover.git"
+
+[dependency-groups]
+dev = ["pytest>=8"]
 
 [tool.setuptools]
 packages = ["pycommremover"]

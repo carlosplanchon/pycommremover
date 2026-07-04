@@ -1,54 +1,171 @@
 #!/usr/bin/env python3
+"""Remove comments and docstrings from Python source code.
+
+At the language level these are three different constructs, so the library
+keeps them apart:
+
+* **Line comments** -- ``#`` comments. The tokenizer discards them; no runtime
+  effect.
+* **Block comments** -- bare triple-quoted string statements that are *not*
+  docstrings. Python has no block-comment syntax, so a lone string is the
+  idiom; it evaluates to a discarded no-op.
+* **Docstrings** -- the string literal in the first statement of a module,
+  class or function. Unlike the two above it survives into ``__doc__`` and is
+  visible to ``help()``, ``doctest`` and IDEs.
+
+:func:`remove_comments` deletes line and block comments only (both no-ops), so
+it is behaviour-preserving and keeps docstrings. :func:`remove_docstrings`
+deletes docstrings and therefore *does* change ``__doc__``.
+:func:`remove_comments_and_docstrings` does both in a single pass.
+
+Correctness comes from analysing the source with the standard-library
+``tokenize`` and ``ast`` modules: a ``#`` inside a string is never mistaken
+for a comment, and a real string value (an assignment, a call argument, an
+f-string) is never removed. The input must be syntactically valid Python.
+"""
+
+import ast
+import io
+import tokenize
 
 
-def _get_comments_symbol(text: str, symbol: str) -> list[str]:
-    comments = []
-    i: int = 0
-    indexes = []
-    for i in range(len(text)):
-        if text[i] == symbol:
-            if len(text) > i + 2:
-                if text[i] == text[i + 1] == text[i + 2]:
-                    # print("Triple quote.")
-                    if(len(indexes) == 0):
-                        indexes.append(i)
-                    elif len(indexes) == 1:
-                        indexes.append(i + 2)
-                        comments.append(text[indexes[0]: indexes[1] + 1])
-                        indexes = []
-
-    return comments
+__all__ = [
+    "remove_comments",
+    "remove_docstrings",
+    "remove_comments_and_docstrings",
+]
 
 
-def _get_comments_simplequot(text: str) -> list[str]:
-    return _get_comments_symbol(text=text, symbol="'")
+# (start_row, start_col, end_row, end_col); rows are 1-indexed, cols 0-indexed,
+# matching what both ``tokenize`` and ``ast`` report.
+Span = tuple[int, int, int, int]
+
+# AST nodes whose first statement may be a docstring.
+_DOCSTRING_OWNERS = (
+    ast.Module,
+    ast.ClassDef,
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+)
 
 
-def _get_comments_doublequot(text: str) -> list[str]:
-    return _get_comments_symbol(text=text, symbol='"')
+def _comment_spans(text: str) -> list[Span]:
+    """Span of every ``#`` line comment."""
+    spans: list[Span] = []
+    for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+        if tok.type == tokenize.COMMENT:
+            spans.append((*tok.start, *tok.end))
+    return spans
+
+
+def _is_string_statement(node: ast.AST) -> bool:
+    """True if ``node`` is a bare string-literal statement."""
+    return (
+        isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    )
+
+
+def _string_removals(
+    text: str, *, docstrings: bool | None
+) -> tuple[list[Span], list[tuple[int, int]]]:
+    """Find the bare string statements to remove.
+
+    ``docstrings`` selects which ones: ``True`` only docstrings, ``False`` only
+    non-docstring block comments, ``None`` every bare string statement.
+
+    Returns the spans to blank out and the ``(row, col)`` positions where a
+    ``pass`` must be inserted -- those are strings whose removal would leave an
+    otherwise empty block (``def f(): "doc"``), which would be a syntax error.
+    """
+    tree = ast.parse(text)
+
+    doc_ids: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, _DOCSTRING_OWNERS):
+            if node.body and _is_string_statement(node.body[0]):
+                doc_ids.add(id(node.body[0]))
+
+    spans: list[Span] = []
+    remove_ids: set[int] = set()
+    for node in ast.walk(tree):
+        if not _is_string_statement(node):
+            continue
+        if docstrings is not None and (id(node) in doc_ids) != docstrings:
+            continue
+        remove_ids.add(id(node))
+        value = node.value
+        spans.append(
+            (value.lineno, value.col_offset, value.end_lineno, value.end_col_offset)
+        )
+
+    pass_positions: list[tuple[int, int]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Module):
+            continue  # an empty module is still valid; no ``pass`` needed.
+        for _field, value in ast.iter_fields(node):
+            if (
+                isinstance(value, list)
+                and len(value) == 1
+                and isinstance(value[0], ast.stmt)
+                and id(value[0]) in remove_ids
+            ):
+                stmt = value[0]
+                pass_positions.append((stmt.lineno, stmt.col_offset))
+
+    return spans, pass_positions
+
+
+def _apply(
+    text: str,
+    spans: list[Span],
+    pass_positions: list[tuple[int, int]],
+) -> str:
+    """Blank ``spans``, insert ``pass`` where needed, then trim each line."""
+    lines = text.split("\n")
+
+    for srow, scol, erow, ecol in spans:
+        for row in range(srow, erow + 1):
+            line = lines[row - 1]
+            start = scol if row == srow else 0
+            end = ecol if row == erow else len(line)
+            lines[row - 1] = line[:start] + " " * (end - start) + line[end:]
+
+    # After blanking, the string's characters are spaces; drop ``pass`` in.
+    for row, col in pass_positions:
+        line = lines[row - 1]
+        lines[row - 1] = line[:col] + "pass" + line[col + 4:]
+
+    return "\n".join(line.rstrip() for line in lines)
 
 
 def remove_comments(text: str) -> str:
-    comments = _get_comments_simplequot(text=text)
-    for comment in comments:
-        text = text.replace(comment, "")
+    """Return ``text`` with line and block comments removed, docstrings kept.
 
-    comments = _get_comments_doublequot(text=text)
-    for comment in comments:
-        text = text.replace(comment, "")
+    Behaviour-preserving: only ``#`` comments and non-docstring string
+    statements -- both no-ops at runtime -- are deleted. Line numbers of the
+    remaining code are preserved.
+    """
+    spans, passes = _string_removals(text, docstrings=False)
+    return _apply(text, _comment_spans(text) + spans, passes)
 
-    lines = text.split("\n")
 
-    new_lines = []
+def remove_docstrings(text: str) -> str:
+    """Return ``text`` with docstrings removed, comments kept.
 
-    for line in lines:
-        if "#" in line:
-            line_without_comment = "#".join(line.split("#")[:1]).rstrip(" ")
-            new_lines.append(line_without_comment)
-        else:
-            new_lines.append(line)
+    This changes ``__doc__`` (and what ``help()``/``doctest`` see), which is
+    why it is separate from :func:`remove_comments`.
+    """
+    spans, passes = _string_removals(text, docstrings=True)
+    return _apply(text, spans, passes)
 
-    text = "\n".join(new_lines)
-    # print("--- TEXT ---")
-    # print(text)
-    return text
+
+def remove_comments_and_docstrings(text: str) -> str:
+    """Return ``text`` with comments, block comments and docstrings removed.
+
+    A single-pass equivalent of applying both :func:`remove_comments` and
+    :func:`remove_docstrings`.
+    """
+    spans, passes = _string_removals(text, docstrings=None)
+    return _apply(text, _comment_spans(text) + spans, passes)

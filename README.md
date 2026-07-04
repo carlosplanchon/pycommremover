@@ -1,5 +1,27 @@
 # pycommremover
-*Python module to convert from duration to date and time.*
+*Python library to remove comments and docstrings from Python source code.*
+
+It analyses the code with the standard-library `tokenize` and `ast` modules,
+so a `#` inside a string is never mistaken for a comment and real string
+values (assignments, call arguments, f-strings) are never touched. Line
+numbers of the remaining code are preserved.
+
+## Why three functions?
+At the language level these are different things, so they are removed
+separately:
+
+| Construct | Example | Runtime effect | Removed by |
+|---|---|---|---|
+| **Line comment** | `x = 1  # note` | none (discarded by the tokenizer) | `remove_comments` |
+| **Block comment** | a lone `"""note"""` statement | none (a discarded no-op) | `remove_comments` |
+| **Docstring** | first string of a module/class/function | kept as `__doc__`, seen by `help()`/`doctest` | `remove_docstrings` |
+
+`remove_comments` is **behaviour-preserving** (it only deletes no-ops and
+keeps docstrings). `remove_docstrings` changes `__doc__`, so it is opt-in.
+`remove_comments_and_docstrings` does both in one pass.
+
+When removing a string that is a block's only statement (e.g. `def f():
+"""doc"""`), a `pass` is inserted so the result stays valid Python.
 
 ## Installation
 ### Install with uv:
@@ -8,46 +30,31 @@ uv add pycommremover
 ```
 
 ## Usage
+```python
+import pycommremover
+
+src = '''
+def greet(name):
+    """Return a greeting."""          # docstring: kept by remove_comments
+    msg = f"Hi, {name}"  # build it   # line comment: removed
+    """a block comment"""             # block comment: removed
+    return msg
+'''
+
+# Line + block comments gone, docstring kept:
+print(pycommremover.remove_comments(src))
+
+# Only the docstring gone:
+print(pycommremover.remove_docstrings(src))
+
+# Everything gone:
+print(pycommremover.remove_comments_and_docstrings(src))
 ```
-In [1]: import pycommremover
 
-In [2]: text = """
-print("First line")
+The input must be syntactically valid Python.
 
-\"\"\"
-
-print("Commented line.")
-
-'''
-print("Commented line 2.")
-
-print("Commented line 3.")
-
-# Single line comment 1.
-'''
-
-# Single line comment.
-print("Commented line 4.")
-
-\"\"\"
-
-# Single line comment 2.
-
-print("Commented line 5")
-"""
-
-In [3]: output = pycommremover.remove_comments(text=text)
-
-
-In [4]: print(output)
-
-print("First line")
-
-
-
-
-
-print("Commented line 5")
-
-
+## Development
+The `dev` dependency group (installed automatically by `uv run`) provides pytest:
+```
+uv run pytest
 ```

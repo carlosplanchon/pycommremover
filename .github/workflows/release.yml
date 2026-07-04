@@ -1,0 +1,61 @@
+name: Release
+
+# Publishes to PyPI when a version tag (e.g. v0.4) is pushed, using PyPI
+# Trusted Publishing (OIDC) -- no API token stored in the repo.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Run tests
+        run: uv run pytest
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+
+    # Requires a manual approval if the `pypi` environment has reviewers set.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pycommremover
+
+    permissions:
+      id-token: write   # mint the OIDC token for Trusted Publishing
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Verify tag matches project version
+        run: |
+          version="$(uv version --short)"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$version" != "$tag" ]; then
+            echo "::error::Tag '${GITHUB_REF_NAME}' does not match pyproject version '${version}' (expected tag 'v${version}')."
+            exit 1
+          fi
+          echo "OK: tag ${GITHUB_REF_NAME} matches version ${version}"
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Publish to PyPI
+        run: uv publish --trusted-publishing always

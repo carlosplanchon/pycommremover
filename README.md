@@ -1,4 +1,11 @@
 # pycommremover
+
+[![CI](https://github.com/carlosplanchon/pycommremover/actions/workflows/ci.yml/badge.svg)](https://github.com/carlosplanchon/pycommremover/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/pycommremover.svg)](https://pypi.org/project/pycommremover/)
+[![Python versions](https://img.shields.io/pypi/pyversions/pycommremover.svg)](https://pypi.org/project/pycommremover/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/carlosplanchon/pycommremover)
+
 *Python library to remove comments and docstrings from Python source code.*
 
 It analyses the code with the standard-library `tokenize` and `ast` modules,
